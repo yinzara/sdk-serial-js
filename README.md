@@ -5,7 +5,7 @@
 If you are using a bundler and JavaScript package manager, you can install the SDK via NPM:
 
 ```
-npm install --save improv-wifi-sdk
+npm install --save improv-wifi-serial-sdk
 ```
 
 And then import it in your code:
