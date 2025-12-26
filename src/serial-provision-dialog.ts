@@ -1,20 +1,22 @@
-import {
-  LitElement,
-  html,
-  PropertyValues,
-  css,
-  TemplateResult,
-  svg,
-} from "lit";
+import { LitElement, html, PropertyValues, css, TemplateResult } from "lit";
 import { customElement, query, property, state } from "lit/decorators.js";
-import "./components/is-dialog";
-import "./components/is-icon-button";
-import "./components/is-textfield";
-import "./components/is-button";
-import "./components/is-circular-progress";
-import "./components/is-select";
-import "./components/is-list-item";
-import type { IsTextfield } from "./components/is-textfield";
+import "@material/web/dialog/dialog.js";
+import "@material/web/iconbutton/filled-tonal-icon-button.js";
+import "@material/web/iconbutton/outlined-icon-button.js";
+import "@material/web/iconbutton/icon-button.js";
+import "@material/web/textfield/outlined-text-field.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/button/filled-button.js";
+import "@material/web/progress/circular-progress.js";
+import "@material/web/select/outlined-select.js";
+import "@material/web/select/select-option.js";
+import "@material/web/list/list.js";
+import "@material/web/list/list-item.js";
+import "@material/web/icon/icon.js";
+
+import type { MdOutlinedTextField } from "@material/web/textfield/outlined-text-field";
+import type { MdOutlinedSelect } from "@material/web/select/outlined-select.js";
+
 import {
   ImprovSerialCurrentState,
   ImprovSerialErrorState,
@@ -23,18 +25,26 @@ import {
 } from "./const.js";
 import { ImprovSerial, Ssid } from "./serial.js";
 import { fireEvent } from "./util/fire-event";
-import { IsSelect } from "./components/is-select";
 
 const ERROR_ICON = "⚠️";
 const OK_ICON = "🎉";
-const refreshIcon = svg`
-  <svg viewBox="0 0 24 24">
-    <path
-      fill="currentColor"
-      d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
-    />
-  </svg>
-`;
+const MATERIAL_SYMBOLS_FONT_ID = "material-symbols-font";
+const MATERIAL_SYMBOLS_FONT_URL =
+  "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined";
+
+function getWifiIconName(rssi: number): string {
+  if (rssi >= -50) return "network_wifi";
+  if (rssi >= -60) return "network_wifi_3_bar";
+  if (rssi >= -70) return "network_wifi_2_bar";
+  return "network_wifi_1_bar";
+}
+
+function getSignalStrengthClass(rssi: number): string {
+  if (rssi >= -50) return "signal-excellent";
+  if (rssi >= -60) return "signal-good";
+  if (rssi >= -70) return "signal-fair";
+  return "signal-weak";
+}
 
 @customElement("improv-wifi-serial-provision-dialog")
 class SerialProvisionDialog extends LitElement {
@@ -54,101 +64,115 @@ class SerialProvisionDialog extends LitElement {
 
   @state() private _hasProvisioned = false;
 
-  @state() private _showProvisionForm = false;
-
   @state() private _selectedSsid: string | null = null;
 
   // undefined = not loaded
   // null = not available
   @state() private _ssids?: Ssid[] | null;
 
-  @query("is-select") private _selectSSID!: IsSelect;
-  @query("is-textfield[name=ssid]") private _inputSSID!: IsTextfield;
-  @query("is-textfield[name=password]") private _inputPassword?: IsTextfield;
+  @state() private _showPassword = false;
+
+  @query("md-outlined-select") private _selectSSID!: MdOutlinedSelect;
+  @query("md-outlined-text-field[name=ssid]")
+  private _inputSSID!: MdOutlinedTextField;
+  @query("md-outlined-text-field[name=password]")
+  private _inputPassword?: MdOutlinedTextField;
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (!document.getElementById(MATERIAL_SYMBOLS_FONT_ID)) {
+      const link = document.createElement("link");
+      link.id = MATERIAL_SYMBOLS_FONT_ID;
+      link.rel = "stylesheet";
+      link.href = MATERIAL_SYMBOLS_FONT_URL;
+      document.head.appendChild(link);
+    }
+  }
 
   protected render() {
     if (!this.port) {
       return html``;
     }
+    let heading: TemplateResult = html`${this._client?.info?.name ?? ""}`;
     let content: TemplateResult;
-    let hideActions = false;
+    let actions: TemplateResult | undefined;
 
-    if (this._state === "ERROR") {
+    if (this._state === "CONNECTING") {
+      content = this._renderProgress("Connecting");
+    } else if (this._state === "ERROR") {
       content = this._renderMessage(
         ERROR_ICON,
         `An error occurred. ${this._error}`,
-        true
       );
-    } else if (!this._client || this._state === "CONNECTING") {
-      content = this._renderProgress("Connecting");
-      hideActions = true;
-    } else if (this._showProvisionForm) {
+      actions = this._renderCloseAction();
+    } else if (this._client!.state === ImprovSerialCurrentState.READY) {
       if (this._busy) {
         content = this._renderProgress("Provisioning");
-        hideActions = true;
-      } else if (this._ssids === undefined) {
-        content = this._renderProgress("Scanning for networks");
-        hideActions = true;
       } else {
+        heading = html`<md-filled-tonal-icon-button
+            ><md-icon>wifi</md-icon></md-filled-tonal-icon-button
+          >
+          Configure Wi-Fi
+          <md-outlined-icon-button @click=${this._updateSsids} data-refresh>
+            <md-icon>refresh</md-icon>
+          </md-outlined-icon-button>`;
         content = this._renderImprovReady();
+        actions = html`${this._renderCloseAction()}
+          <md-filled-button @click=${this._provision}
+            >Connect</md-filled-button
+          > `;
       }
-    } else if (this._client.state === ImprovSerialCurrentState.PROVISIONING) {
+    } else if (this._client!.state === ImprovSerialCurrentState.PROVISIONING) {
       content = this._renderProgress("Provisioning");
-      hideActions = true;
-    } else if (
-      this._client.state === ImprovSerialCurrentState.PROVISIONED ||
-      this._client.state === ImprovSerialCurrentState.READY
-    ) {
-      [content, hideActions] = this._renderImprovDashboard();
+    } else if (this._client!.state === ImprovSerialCurrentState.PROVISIONED) {
+      content = this._renderImprovDashboard();
+      actions =
+        this._client!.nextUrl === undefined
+          ? this._renderCloseAction()
+          : html`${this._renderCloseAction()}
+              <md-filled-button href=${this._client!.nextUrl} form="improv-form"
+                >Next</md-filled-button
+              >`;
     } else {
       content = this._renderMessage(
         ERROR_ICON,
-        `Unexpected state: ${this._state} - ${this._client.state}`,
-        true
+        `Unexpected state: ${this._state} - ${this._client!.state}`,
       );
+      actions = this._renderCloseAction();
     }
 
     return html`
-      <is-dialog
-        open
-        .heading=${this._client?.info?.name}
-        scrimClickAction
-        @closed=${this._handleClose}
-        .hideActions=${hideActions}
-        >${content}</is-dialog
-      >
+      <md-dialog open @close=${this._handleClose}>
+        <div slot="headline">${heading}</div>
+        <form slot="content" id="improv-form" method="dialog">${content}</form>
+        ${actions ? html`<div slot="actions">${actions}</div>` : ""}
+      </md-dialog>
     `;
+  }
+
+  _renderCloseAction() {
+    return html`<md-outlined-button form="improv-form"
+      >Close</md-outlined-button
+    >`;
   }
 
   _renderProgress(label: string) {
     return html`
       <div class="center">
         <div>
-          <is-circular-progress
-            active
-            indeterminate
-            density="8"
-          ></is-circular-progress>
+          <md-circular-progress indeterminate></md-circular-progress>
         </div>
         ${label}
       </div>
     `;
   }
 
-  _renderMessage(icon: string, label: string, showClose: boolean) {
+  _renderMessage(icon: string, label: string) {
     return html`
       <div class="center">
         <div class="icon">${icon}</div>
         ${label}
       </div>
-      ${showClose &&
-      html`
-        <is-button
-          slot="primaryAction"
-          dialogAction="ok"
-          label="Close"
-        ></is-button>
-      `}
     `;
   }
 
@@ -180,7 +204,7 @@ class SerialProvisionDialog extends LitElement {
     }
 
     const selectedSsid = this._ssids?.find(
-      (info) => info.name === this._selectedSsid
+      (info) => info.name === this._selectedSsid,
     );
 
     return html`
@@ -188,14 +212,15 @@ class SerialProvisionDialog extends LitElement {
         Enter the credentials of the Wi-Fi network that you want your device to
         connect to.
       </div>
+      ${this._client?.info ? this._renderDeviceInfo() : ""}
       ${error ? html`<p class="error">${error}</p>` : ""}
       ${this._ssids !== null
         ? html`
-            <is-select
-              fixedMenuPosition
+            <md-outlined-select
+              required
               label="Network"
-              @selected=${(ev: { detail: { index: number } }) => {
-                const index = ev.detail.index;
+              @change=${(ev: Event) => {
+                const index = (ev.target as MdOutlinedSelect).selectedIndex;
                 // The "Join Other" item is always the last item.
                 this._selectedSsid =
                   index === this._ssids!.length
@@ -206,25 +231,43 @@ class SerialProvisionDialog extends LitElement {
             >
               ${this._ssids!.map(
                 (info, idx) => html`
-                  <is-list-item .selected=${selectedSsid === info} value=${idx}>
-                    ${info.name}
-                  </is-list-item>
-                `
+                  <md-select-option
+                    .selected=${selectedSsid === info}
+                    value=${idx}
+                  >
+                    <md-icon
+                      slot="start"
+                      class=${getSignalStrengthClass(info.rssi)}
+                      >${getWifiIconName(info.rssi)}</md-icon
+                    >
+                    <span slot="headline">${info.name}</span>
+                    <span slot="end" class="network-details">
+                      <span class="signal-strength">${info.rssi}dB</span>
+                      <md-icon
+                        class="lock-icon ${info.secured
+                          ? "lock-secured"
+                          : "lock-unsecured"}"
+                        >${info.secured ? "lock" : "lock_open"}</md-icon
+                      >
+                    </span>
+                  </md-select-option>
+                `,
               )}
-              <is-list-item .selected=${!selectedSsid} value="-1">
+              <md-select-option .selected=${!selectedSsid} value="-1">
                 Join other…
-              </is-list-item>
-            </is-select>
-            <ewt-icon-button @click=${this._updateSsids}>
-              ${refreshIcon}
-            </ewt-icon-button>
+              </md-select-option>
+            </md-outlined-select>
           `
         : ""}
       ${
         // Show input box if command not supported or "Join Other" selected
-        !selectedSsid
+        this._ssids === null || this._selectedSsid === null
           ? html`
-              <is-textfield label="Network Name" name="ssid"></is-textfield>
+              <md-outlined-text-field
+                required
+                label="Network Name"
+                name="ssid"
+              ></md-outlined-text-field>
             `
           : ""
       }
@@ -232,43 +275,44 @@ class SerialProvisionDialog extends LitElement {
         // Show password if custom SSID or needs password
         !selectedSsid || selectedSsid.secured
           ? html`
-              <is-textfield
+              <md-outlined-text-field
+                required
                 label="Password"
                 name="password"
-                type="password"
-              ></is-textfield>
+                type=${this._showPassword ? "text" : "password"}
+              >
+                <md-icon-button
+                  slot="trailing-icon"
+                  @click=${this._togglePasswordVisibility}
+                  toggle
+                  .selected=${this._showPassword}
+                >
+                  <md-icon
+                    >${this._showPassword
+                      ? "visibility_off"
+                      : "visibility"}</md-icon
+                  >
+                </md-icon-button>
+              </md-outlined-text-field>
             `
           : ""
       }
-      <is-button
-        slot="primaryAction"
-        label="Connect"
-        @click=${this._provision}
-      ></is-button>
-      ${this._client!.state === ImprovSerialCurrentState.PROVISIONED
-        ? html`
-            <is-button
-              slot="secondaryAction"
-              label="Back"
-              @click=${this._toggleShowProvisionForm}
-            ></is-button>
-          `
-        : html`
-            <is-button
-              slot="secondaryAction"
-              dialogAction="close"
-              label="Cancel"
-            ></is-button>
-          `}
     `;
   }
 
-  _renderImprovDashboard(): [TemplateResult, boolean] {
-    const hideActions = true;
-    const content = html`
-      <div class="device-info">
-        Software: ${this._client!.info?.firmware}/${this._client!.info?.version}
-      </div>
+  _renderDeviceInfo(): TemplateResult {
+    return html`<div class="device-info">
+      <div><md-icon>info</md-icon>Device Info</div>
+      <div>Firmware Name<span>${this._client!.info!.firmware}</span></div>
+      <div>Firmware Version<span>${this._client!.info!.version}</span></div>
+      <div>Chip Family<span>${this._client!.info!.chipFamily}</span></div>
+      <div>Device Name<span>${this._client!.info!.name}</span></div>
+    </div>`;
+  }
+
+  _renderImprovDashboard(): TemplateResult {
+    return html`
+      ${this._renderDeviceInfo()}
       ${this._hasProvisioned
         ? html`
             <div class="center">
@@ -277,42 +321,17 @@ class SerialProvisionDialog extends LitElement {
             </div>
           `
         : ""}
-      <div class="dashboard-buttons">
-        ${this._client!.nextUrl === undefined
-          ? ""
-          : html`
-              <div>
-                <a
-                  target="_blank"
-                  href=${this._client!.nextUrl}
-                  class="has-button"
-                >
-                  <is-button label="Visit Device"></is-button>
-                </a>
-              </div>
-            `}
-        <div>
-          <is-button
-            .label=${this._client!.state === ImprovSerialCurrentState.READY
-              ? "Connect to Wi-Fi"
-              : "Change Wi-Fi"}
-            @click=${this._toggleShowProvisionForm}
-          ></is-button>
-        </div>
-        <div>
-          <is-button label="Close" dialogAction="close"></is-button>
-        </div>
-      </div>
     `;
-    return [content, hideActions];
   }
 
-  private async _toggleShowProvisionForm() {
-    this._showProvisionForm = !this._showProvisionForm;
-    this._hasProvisioned = false;
+  private _togglePasswordVisibility(event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this._showPassword = !this._showPassword;
   }
 
-  private async _updateSsids() {
+  private async _updateSsids(event: Event | undefined = undefined) {
+    event?.preventDefault();
     const oldSsids = this._ssids;
     this._ssids = undefined;
     this._busy = true;
@@ -355,23 +374,14 @@ class SerialProvisionDialog extends LitElement {
           ? this._inputSSID.value
           : this._selectedSsid,
         this._inputPassword?.value || "",
-        30000 // Timeout in 30 seconds
+        30000, // Timeout in 30 seconds
       );
       this._hasProvisioned = true;
-      this._showProvisionForm = false;
     } catch (err) {
       // No need to do error handling because we listen for `error-changed` events
       console.log(err);
     } finally {
       this._busy = false;
-    }
-  }
-
-  protected override willUpdate(changedProps: PropertyValues) {
-    super.willUpdate(changedProps);
-
-    if (changedProps.has("_showProvisionForm") && this._showProvisionForm) {
-      this._updateSsids();
     }
   }
 
@@ -434,6 +444,11 @@ class SerialProvisionDialog extends LitElement {
       this.requestUpdate();
     }
     this._client = client;
+    try {
+      await this._updateSsids(); // do an initial scan since we're showing the dialog immediately
+    } catch (err: any) {
+      console.error("Unable to update SSIDs", err);
+    }
   }
 
   private async _handleClose() {
@@ -454,56 +469,120 @@ class SerialProvisionDialog extends LitElement {
 
   static styles = css`
     :host {
-      --mdc-dialog-max-width: 390px;
-      --mdc-theme-primary: var(--improv-primary-color, #03a9f4);
-      --mdc-theme-on-primary: var(--improv-on-primary-color, #fff);
+      --md-dialog-max-width: 390px;
+      --md-dialog-container-max-block-size: none !important;
+      --md-sys-color-primary: var(--improv-primary-color, #03a9f4);
+      --md-sys-color-on-primary: var(--improv-on-primary-color, #fff);
     }
-    ewt-icon-button {
-      position: absolute;
-      right: 4px;
-      top: 10px;
+
+    md-dialog {
+      --md-dialog-container-max-block-size: none !important;
+      max-height: 90vh !important;
     }
-    is-textfield,
-    is-select {
+
+    md-dialog [slot="content"],
+    form[slot="content"] {
+      overflow: visible !important;
+      max-height: none !important;
+    }
+
+    md-outlined-text-field,
+    md-outlined-select {
       display: block;
       margin-top: 16px;
     }
+
     .center {
       text-align: center;
     }
-    is-circular-progress {
+
+    md-circular-progress {
       margin-bottom: 16px;
     }
+
     a.has-button {
       text-decoration: none;
     }
+
     .icon {
       font-size: 50px;
       line-height: 80px;
       color: black;
     }
+
     .error {
       color: #db4437;
     }
-    button.link {
-      background: none;
-      color: inherit;
-      border: none;
-      padding: 0;
-      font: inherit;
-      text-align: left;
-      text-decoration: underline;
-      cursor: pointer;
+
+    .device-info {
+      margin-top: 16px;
+      padding: 16px;
+      background-color: #d6d6d6;
+      border-radius: 8px;
+      border: 1px solid #676767;
     }
-    is-list-item[value="-1"] {
+
+    .device-info > div {
+      display: flex;
+      color: #5f6368;
+      justify-content: space-between;
+    }
+
+    .device-info > div > span {
+      color: #1f1f1f;
+    }
+
+    md-select-option[value="-1"] {
       border-top: 1px solid #ccc;
     }
-    .dashboard-buttons {
-      margin: 16px 0 -16px -8px;
+
+    .refresh-button,
+    md-outlined-icon-button[data-refresh] {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
     }
-    .dashboard-buttons div {
-      display: block;
-      margin: 4px 0;
+
+    .network-details {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: #5f6368;
+      font-size: 0.85em;
+    }
+
+    .signal-strength {
+      min-width: 45px;
+      text-align: right;
+    }
+
+    .lock-icon {
+      font-size: 18px;
+    }
+
+    .lock-secured {
+      color: #34a853;
+    }
+
+    .lock-unsecured {
+      color: #ea4335;
+    }
+
+    .signal-excellent {
+      color: #34a853;
+    }
+
+    .signal-good {
+      color: #4285f4;
+    }
+
+    .signal-fair {
+      color: #fbbc04;
+    }
+
+    .signal-weak {
+      color: #ea4335;
     }
   `;
 }
