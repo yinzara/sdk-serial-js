@@ -176,7 +176,7 @@ export class ImprovSerial extends EventTarget {
     const ssids = results.map(([name, rssi, secured]) => ({
       name,
       rssi: parseInt(rssi),
-      secured: secured === "YES",
+      secured: secured !== "NO",
     }));
     ssids.sort((a, b) =>
       a.name.toLocaleLowerCase().localeCompare(b.name.toLocaleLowerCase())
