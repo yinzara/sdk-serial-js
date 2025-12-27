@@ -111,11 +111,7 @@ class SerialProvisionDialog extends LitElement {
       } else {
         heading = html`<md-filled-tonal-icon-button
             ><md-icon>wifi</md-icon></md-filled-tonal-icon-button
-          >
-          Configure Wi-Fi
-          <md-outlined-icon-button @click=${this._updateSsids} data-refresh>
-            <md-icon>refresh</md-icon>
-          </md-outlined-icon-button>`;
+          >Configure Wi-Fi`;
         content = this._renderImprovReady();
         actions = html`${this._renderCloseAction()}
           <md-filled-button @click=${this._provision}
@@ -218,47 +214,54 @@ class SerialProvisionDialog extends LitElement {
       ${error ? html`<p class="error">${error}</p>` : ""}
       ${this._ssids !== null
         ? html`
-            <md-outlined-select
-              required
-              label="Network"
-              @change=${(ev: Event) => {
-                const index = (ev.target as MdOutlinedSelect).selectedIndex;
-                // The "Join Other" item is always the last item.
-                this._selectedSsid =
-                  index === this._ssids!.length
-                    ? null
-                    : this._ssids![index].name;
-              }}
-              @closed=${(ev: Event) => ev.stopPropagation()}
-            >
-              ${this._ssids!.map(
-                (info, idx) => html`
-                  <md-select-option
-                    .selected=${selectedSsid === info}
-                    value=${idx}
-                  >
-                    <md-icon
-                      slot="start"
-                      class=${getSignalStrengthClass(info.rssi)}
-                      >${getWifiIconName(info.rssi)}</md-icon
+            <div class="network-select">
+              <md-outlined-select
+                name="ssid_select"
+                required
+                label="Network"
+                @change=${(ev: Event) => {
+                  const index = (ev.target as MdOutlinedSelect).selectedIndex;
+                  // The "Join Other" item is always the last item.
+                  this._selectedSsid =
+                    index === this._ssids!.length
+                      ? null
+                      : this._ssids![index].name;
+                }}
+                @closed=${(ev: Event) => ev.stopPropagation()}
+              >
+                ${this._ssids!.map(
+                  (info, idx) => html`
+                    <md-select-option
+                      .selected=${selectedSsid === info}
+                      value=${idx}
                     >
-                    <span slot="headline">${info.name}</span>
-                    <span slot="end" class="network-details">
-                      <span class="signal-strength">${info.rssi}dB</span>
                       <md-icon
-                        class="lock-icon ${info.secured
-                          ? "lock-secured"
-                          : "lock-unsecured"}"
-                        >${info.secured ? "lock" : "lock_open"}</md-icon
+                        slot="start"
+                        class=${getSignalStrengthClass(info.rssi)}
+                        >${getWifiIconName(info.rssi)}</md-icon
                       >
-                    </span>
-                  </md-select-option>
-                `,
-              )}
-              <md-select-option .selected=${!selectedSsid} value="-1">
-                Join other…
-              </md-select-option>
-            </md-outlined-select>
+                      <span slot="headline">${info.name}</span>
+                      <span slot="end" class="network-details">
+                        <span class="signal-strength">${info.rssi}dB</span>
+                        <md-icon
+                          class="lock-icon ${info.secured
+                            ? "lock-secured"
+                            : "lock-unsecured"}"
+                          >${info.secured ? "lock" : "lock_open"}</md-icon
+                        >
+                      </span>
+                    </md-select-option>
+                  `,
+                )}
+                <md-select-option .selected=${!selectedSsid} value="-1">
+                  Join other…
+                </md-select-option>
+              </md-outlined-select>
+
+              <md-outlined-icon-button @click=${this._updateSsids} data-refresh>
+                <md-icon>refresh</md-icon>
+              </md-outlined-icon-button>
+            </div>
           `
         : ""}
       ${
@@ -543,13 +546,19 @@ class SerialProvisionDialog extends LitElement {
     md-select-option[value="-1"] {
       border-top: 1px solid #ccc;
     }
+    md-outlined-select[name="ssid_select"] {
+      width: 100%;
+    }
 
-    .refresh-button,
-    md-outlined-icon-button[data-refresh] {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      z-index: 10;
+    .network-select {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .network-select md-outlined-icon-button {
+      margin-bottom: 8px;
     }
 
     .network-details {

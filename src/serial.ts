@@ -39,6 +39,8 @@ export class ImprovSerial extends EventTarget {
     chipFamily: string;
   };
 
+  public improvVersion: number | undefined;
+
   public nextUrl: string | undefined;
 
   public state?: ImprovSerialCurrentState | undefined;
