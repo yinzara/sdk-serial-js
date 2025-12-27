@@ -151,7 +151,9 @@ class SerialProvisionDialog extends LitElement {
   }
 
   _renderCloseAction() {
-    return html`<md-outlined-button form="improv-form"
+    return html`<md-outlined-button
+      form="improv-form"
+      @click=${this._handleClose}
       >Close</md-outlined-button
     >`;
   }
