@@ -305,10 +305,10 @@ class SerialProvisionDialog extends LitElement {
   _renderDeviceInfo(): TemplateResult {
     return html`<div class="device-info">
       <div><md-icon>info</md-icon>Device Info</div>
-      <div>Firmware Name<span>${this._client!.info!.firmware}</span></div>
-      <div>Firmware Version<span>${this._client!.info!.version}</span></div>
-      <div>Chip Family<span>${this._client!.info!.chipFamily}</span></div>
-      <div>Device Name<span>${this._client!.info!.name}</span></div>
+      <div>Name<span>${this._client!.info!.name}</span></div>
+      <div>Firmware<span>${this._client!.info!.firmware}</span></div>
+      <div>Version<span>${this._client!.info!.version}</span></div>
+      <div>Chip<span>${this._client!.info!.chipFamily}</span></div>
     </div>`;
   }
 
@@ -522,6 +522,12 @@ class SerialProvisionDialog extends LitElement {
       background-color: #d6d6d6;
       border-radius: 8px;
       border: 1px solid #676767;
+    }
+
+    .device-info > div:first-child {
+      justify-content: flex-start;
+      align-items: center;
+      gap: 8px;
     }
 
     .device-info > div {
