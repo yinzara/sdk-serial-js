@@ -312,6 +312,14 @@ class SerialProvisionDialog extends LitElement {
       <div>Firmware<span>${this._client!.info!.firmware}</span></div>
       <div>Version<span>${this._client!.info!.version}</span></div>
       <div>Chip<span>${this._client!.info!.chipFamily}</span></div>
+      ${this._client!.info!.osName
+        ? html`<div>OS<span>${this._client!.info!.osName}</span></div>`
+        : ""}
+      ${this._client!.info!.osVersion
+        ? html`<div>
+            OS Version<span>${this._client!.info!.osVersion}</span>
+          </div>`
+        : ""}
     </div>`;
   }
 

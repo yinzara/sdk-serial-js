@@ -37,6 +37,8 @@ export class ImprovSerial extends EventTarget {
     firmware: string;
     version: string;
     chipFamily: string;
+    osName: string | null;
+    osVersion: string | null;
   };
 
   public improvVersion: number | undefined;
@@ -152,6 +154,8 @@ export class ImprovSerial extends EventTarget {
       version: response[1],
       name: response[3],
       chipFamily: response[2],
+      osName: response.length > 4 ? response[4] : null,
+      osVersion: response.length > 5 ? response[5] : null,
     };
   }
 
