@@ -593,7 +593,6 @@ class SerialProvisionDialog extends LitElement {
     }
 
     .device-info {
-      margin-top: 16px;
       margin-bottom: 16px;
       padding: 16px;
       background-color: #d6d6d6;
